@@ -1,0 +1,3 @@
+Watch_resource 为readme文件中的练习1
+tc.py 基础练习的客户端
+ts.py 基础练习的服务端
