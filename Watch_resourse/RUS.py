@@ -12,7 +12,9 @@ class RUS:
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.bind((self.host, self.port))
         self.server_socket.listen(5)
+        # 专门用于处理客户端连接 主要用于接收消息和发送消息
         self.client_socket = None
+        # 用于暂停数据收集
         self.is_paused = False
 
     def start(self):
@@ -20,6 +22,7 @@ class RUS:
         # 等待客户端连接
         self.client_socket, addr = self.server_socket.accept()
         print(f"Connected to {addr}")
+        # 开启一个线程用于接收消息
         threading.Thread(target=self.receive_messages).start()
 
     def receive_messages(self):
@@ -33,6 +36,8 @@ class RUS:
         if message_type == 'pause':
             self.is_paused = True
             duration = message.get('duration', 0)
+            # 开启一个线程用于暂停数据收集 这时候handle_message函数会卡到这块 但是receive_messages线程不会卡住
+            # 它还会继续接收消息 存到缓存区中 等到暂停时间结束 再发送给客户端
             threading.Thread(target=self.pause, args=(duration,)).start()
             self.send_message({'type': 'cmd-ack', 'code': 200, 'info': '处理成功'})
         elif message_type == 'resume':
@@ -49,13 +54,17 @@ class RUS:
         message_str = json.dumps(message)
         message_length = len(message_str)
         full_message = f"{message_length}\n{message_str}"
+        while(self.client_socket == None):
+            continue
         self.client_socket.sendall(full_message.encode('utf-8'))
 
     def receive_message(self):
+        # 接收消息头的长度
         length_str = self._recv_until_newline()
         if not length_str:
             return None
         length = int(length_str)
+        # 接收消息体 并且解码成字符串（从字节串）
         message_str = self.client_socket.recv(length).decode('utf-8')
         return json.loads(message_str)
 
